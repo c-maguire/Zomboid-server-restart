@@ -3,35 +3,84 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome</title>
+    <title>Server Control</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
             margin: 0;
-            padding: 20px;
-            background-color: #f5f5f5;
         }
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            background-color: white;
-            padding: 20px;
+        .card {
+            background-color: #1e293b;
+            padding: 2rem;
+            border-radius: 12px;
+            text-align: center;
+            max-width: 350px;
+            width: 90%;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        }
+        button {
+            background-color: #ef4444;
+            color: white;
+            border: none;
+            padding: 0.8rem 1.5rem;
+            font-size: 1rem;
+            font-weight: bold;
             border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            cursor: pointer;
+            width: 100%;
+            margin-top: 1rem;
         }
-        h1 {
-            color: #333;
-        }
-        p {
-            color: #666;
-            line-height: 1.6;
-        }
+        button:hover { background-color: #dc2626; }
+        button:disabled { background-color: #64748b; cursor: not-allowed; }
+        #status { margin-top: 1rem; font-size: 0.9rem; }
+        .success { color: #4ade80; }
+        .error { color: #f87171; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Welcome</h1>
-        <p>This is your index.html file. Feel free to customize it with your own content.</p>
+    <div class="card">
+        <h2>Game Server Panel</h2>
+        <p>Click below to trigger a full AMP server restart.</p>
+        <button id="btn" onclick="triggerRestart()">Restart Server</button>
+        <div id="status"></div>
     </div>
+
+    <script>
+        // PASTE YOUR CLOUDFLARE WORKER URL HERE
+        const WORKER_URL = "https://amp-restart-proxy.yourname.workers.dev";
+
+        async function triggerRestart() {
+            const btn = document.getElementById('btn');
+            const status = document.getElementById('status');
+            
+            btn.disabled = true;
+            status.className = '';
+            status.innerText = 'Sending restart request...';
+
+            try {
+                const response = await fetch(WORKER_URL, { method: 'POST' });
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    status.className = 'success';
+                    status.innerText = 'Restart signal sent successfully!';
+                } else {
+                    status.className = 'error';
+                    status.innerText = data.error || 'Failed to trigger restart.';
+                }
+            } catch (err) {
+                status.className = 'error';
+                status.innerText = 'Network error contacting serverless worker.';
+            } finally {
+                setTimeout(() => { btn.disabled = false; }, 5000);
+            }
+        }
+    </script>
 </body>
 </html>
