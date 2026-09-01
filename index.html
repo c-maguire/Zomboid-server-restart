@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bloobs Zomboid Server Control</title>
     <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
         body {
             font-family: system-ui, -apple-system, sans-serif;
             background-color: #0f172a;
@@ -13,16 +18,24 @@
             justify-content: center;
             align-items: center;
             height: 100vh;
-            margin: 0;
         }
         .card {
             background-color: #1e293b;
             padding: 2rem;
             border-radius: 12px;
             text-align: center;
-            max-width: 350px;
+            max-width: 380px;
             width: 90%;
             box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            border: 1px solid #334155;
+        }
+        h2 {
+            margin-bottom: 0.5rem;
+        }
+        p.subtitle {
+            color: #94a3b8;
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
         }
         button {
             background-color: #ef4444;
@@ -34,51 +47,151 @@
             border-radius: 8px;
             cursor: pointer;
             width: 100%;
-            margin-top: 1rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background-color 0.2s;
         }
-        button:hover { background-color: #dc2626; }
-        button:disabled { background-color: #64748b; cursor: not-allowed; }
-        #status { margin-top: 1rem; font-size: 0.9rem; }
-        .success { color: #4ade80; }
-        .error { color: #f87171; }
+        button:hover:not(:disabled) { 
+            background-color: #dc2626; 
+        }
+        button:disabled { 
+            background-color: #64748b; 
+            cursor: not-allowed; 
+            opacity: 0.8;
+        }
+        /* Status Banner */
+        .status-box {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 1.2rem;
+            padding: 0.75rem;
+            background-color: #0f172a;
+            border-radius: 8px;
+            font-size: 0.875rem;
+        }
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .status-dot.working {
+            background-color: #f59e0b;
+            animation: pulse 1.2s infinite ease-in-out;
+        }
+        .status-dot.success { background-color: #4ade80; }
+        .status-dot.error { background-color: #f87171; }
+
+        .hidden { display: none !important; }
+
+        @keyframes pulse {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.95); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+
+        /* Spinner Component */
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            margin-right: 8px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #ffffff;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
     <div class="card">
-        <h2>Zomboid</h2>
-        <p>Click below to trigger a server restart.</p>
-        <button id="btn" onclick="triggerRestart()">Restart Server</button>
-        <div id="status"></div>
+        <h2>Bloobs Zomboid</h2>
+        <p class="subtitle">Safely stop and reboot the game server.</p>
+        
+        <button id="btn" onclick="triggerRestart()">
+            <span id="btnSpinner" class="spinner hidden"></span>
+            <span id="btnText">Restart Server</span>
+        </button>
+
+        <div id="statusBox" class="status-box hidden">
+            <div id="statusDot" class="status-dot"></div>
+            <span id="statusText"></span>
+        </div>
     </div>
 
     <script>
-        // PASTE YOUR CLOUDFLARE WORKER URL HERE
         const WORKER_URL = "https://curly-star-f491.maguiremconor.workers.dev";
 
         async function triggerRestart() {
             const btn = document.getElementById('btn');
-            const status = document.getElementById('status');
-            
+            const btnText = document.getElementById('btnText');
+            const btnSpinner = document.getElementById('btnSpinner');
+            const statusBox = document.getElementById('statusBox');
+            const statusDot = document.getElementById('statusDot');
+            const statusText = document.getElementById('statusText');
+
+            // 1. Instantly disable controls & present active state
             btn.disabled = true;
-            status.className = '';
-            status.innerText = 'Sending restart request...';
+            btnSpinner.classList.remove('hidden');
+            btnText.innerText = 'Processing...';
+
+            statusBox.classList.remove('hidden');
+            statusDot.className = 'status-dot working';
+            statusText.innerText = 'Sending stop signal and waiting for shutdown...';
 
             try {
-                const response = await fetch(WORKER_URL, { method: 'POST' });
+                // 2. Dispatch payload with target instance
+                const response = await fetch(WORKER_URL, { 
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ instanceName: 'Zomboid01' })
+                });
+
                 const data = await response.json();
 
                 if (response.ok && data.success) {
-                    status.className = 'success';
-                    status.innerText = 'Restart signal sent successfully!';
+                    // 3. Command succeeded
+                    statusDot.className = 'status-dot success';
+                    statusText.innerText = 'Server stopped & starting back up!';
+
+                    // 4. Enforce a 60-second cooldown timer before re-enabling
+                    let cooldown = (data.cooldownMs || 60000) / 1000;
+                    btnSpinner.classList.add('hidden');
+
+                    const timer = setInterval(() => {
+                        btnText.innerText = `Cooldown (${cooldown}s)`;
+                        cooldown--;
+
+                        if (cooldown < 0) {
+                            clearInterval(timer);
+                            resetUI();
+                        }
+                    }, 1000);
+
                 } else {
-                    status.className = 'error';
-                    status.innerText = data.error || 'Failed to trigger restart.';
+                    throw new Error(data.error || data.details || 'Failed to complete sequence.');
                 }
             } catch (err) {
-                status.className = 'error';
-                status.innerText = 'Network error contacting serverless worker.';
-            } finally {
-                setTimeout(() => { btn.disabled = false; }, 5000);
+                // 5. Error handling
+                statusDot.className = 'status-dot error';
+                statusText.innerText = err.message || 'Network error contacting serverless worker.';
+
+                setTimeout(() => {
+                    resetUI();
+                }, 5000);
+            }
+
+            function resetUI() {
+                btn.disabled = false;
+                btnSpinner.classList.add('hidden');
+                btnText.innerText = 'Restart Server';
+                statusBox.classList.add('hidden');
             }
         }
     </script>
