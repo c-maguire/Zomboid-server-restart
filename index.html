@@ -60,7 +60,6 @@
             cursor: not-allowed; 
             opacity: 0.8;
         }
-        /* Status Banner */
         .status-box {
             display: flex;
             align-items: center;
@@ -93,7 +92,6 @@
             100% { opacity: 1; transform: scale(1); }
         }
 
-        /* Spinner Component */
         .spinner {
             display: inline-block;
             width: 16px;
@@ -136,17 +134,17 @@
             const statusDot = document.getElementById('statusDot');
             const statusText = document.getElementById('statusText');
 
-            // 1. Instantly disable controls & present active state
+            // 1. Lock controls
             btn.disabled = true;
             btnSpinner.classList.remove('hidden');
             btnText.innerText = 'Processing...';
 
             statusBox.classList.remove('hidden');
             statusDot.className = 'status-dot working';
-            statusText.innerText = 'Sending stop signal and waiting for shutdown...';
+            statusText.innerText = 'Stopping server (waiting 15s timer before booting back up)...';
 
             try {
-                // 2. Dispatch payload with target instance
+                // 2. Trigger Worker
                 const response = await fetch(WORKER_URL, { 
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -156,11 +154,11 @@
                 const data = await response.json();
 
                 if (response.ok && data.success) {
-                    // 3. Command succeeded
+                    // 3. Command Succeeded
                     statusDot.className = 'status-dot success';
-                    statusText.innerText = 'Server stopped & starting back up!';
+                    statusText.innerText = 'Start signal sent! Server is booting up...';
 
-                    // 4. Enforce a 60-second cooldown timer before re-enabling
+                    // 4. Cooldown timer
                     let cooldown = (data.cooldownMs || 60000) / 1000;
                     btnSpinner.classList.add('hidden');
 
@@ -175,10 +173,9 @@
                     }, 1000);
 
                 } else {
-                    throw new Error(data.error || data.details || 'Failed to complete sequence.');
+                    throw new Error(data.error || data.details || 'Failed to trigger sequence.');
                 }
             } catch (err) {
-                // 5. Error handling
                 statusDot.className = 'status-dot error';
                 statusText.innerText = err.message || 'Network error contacting serverless worker.';
 
