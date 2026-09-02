@@ -60,6 +60,7 @@
             cursor: not-allowed; 
             opacity: 0.8;
         }
+        /* Status Banner */
         .status-box {
             display: flex;
             align-items: center;
@@ -92,6 +93,7 @@
             100% { opacity: 1; transform: scale(1); }
         }
 
+        /* Spinner Component */
         .spinner {
             display: inline-block;
             width: 16px;
@@ -134,17 +136,17 @@
             const statusDot = document.getElementById('statusDot');
             const statusText = document.getElementById('statusText');
 
-            // 1. Lock controls
+            // 1. Instantly disable controls & show active working state
             btn.disabled = true;
             btnSpinner.classList.remove('hidden');
-            btnText.innerText = 'Processing...';
+            btnText.innerText = 'Restarting...';
 
             statusBox.classList.remove('hidden');
             statusDot.className = 'status-dot working';
-            statusText.innerText = 'Stopping server (waiting 15s timer before booting back up)...';
+            statusText.innerText = 'Shutting down server (waiting 30s for save & port release)...';
 
             try {
-                // 2. Trigger Worker
+                // 2. Dispatch request to worker
                 const response = await fetch(WORKER_URL, { 
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -156,9 +158,9 @@
                 if (response.ok && data.success) {
                     // 3. Command Succeeded
                     statusDot.className = 'status-dot success';
-                    statusText.innerText = 'Start signal sent! Server is booting up...';
+                    statusText.innerText = 'Start signal disptached! Server is booting up...';
 
-                    // 4. Cooldown timer
+                    // 4. Run cooldown countdown before re-enabling controls
                     let cooldown = (data.cooldownMs || 60000) / 1000;
                     btnSpinner.classList.add('hidden');
 
@@ -173,9 +175,10 @@
                     }, 1000);
 
                 } else {
-                    throw new Error(data.error || data.details || 'Failed to trigger sequence.');
+                    throw new Error(data.error || data.details || 'Failed to trigger restart sequence.');
                 }
             } catch (err) {
+                // 5. Error handling
                 statusDot.className = 'status-dot error';
                 statusText.innerText = err.message || 'Network error contacting serverless worker.';
 
